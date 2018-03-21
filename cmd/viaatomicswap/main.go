@@ -1,6 +1,5 @@
 // Copyright (c) 2017 The Decred developers
-// Copyright (c) 2017 The Particl Core developers
-//
+// Copyright (c) 2017 The Viacoin developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -22,13 +21,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/particl/partsuite_partd/chaincfg"
-	"github.com/particl/partsuite_partd/chaincfg/chainhash"
-	rpc "github.com/particl/partsuite_partd/rpcclient"
-	"github.com/particl/partsuite_partd/txscript"
-	"github.com/particl/partsuite_partd/wire"
-	partutil "github.com/particl/partsuite_partutil"
-	"github.com/particl/partsuite_partwallet/wallet/txrules"
+	"github.com/viacoin/viad/chaincfg"
+	"github.com/viacoin/viad/chaincfg/chainhash"
+	rpc "github.com/viacoin/viad/rpcclient"
+	"github.com/viacoin/viad/txscript"
+	"github.com/viacoin/viad/wire"
+	"github.com/viacoin/viautil"
+	"github.com/viacoin/viawallet/wallet/txrules"
 	"golang.org/x/crypto/ripemd160"
 )
 
@@ -36,7 +35,7 @@ const verify = true
 
 const secretSize = 32
 
-const txVersion = 0xA0
+const txVersion = 2
 
 var (
 	chainParams = &chaincfg.MainNetParams
@@ -44,7 +43,7 @@ var (
 
 var (
 	flagset     = flag.NewFlagSet("", flag.ExitOnError)
-	connectFlag = flagset.String("s", "localhost", "host[:port] of Particl Core wallet RPC server")
+	connectFlag = flagset.String("s", "localhost", "host[:port] of Viacoin Core wallet RPC server")
 	rpcuserFlag = flagset.String("rpcuser", "", "username for wallet RPC authentication")
 	rpcpassFlag = flagset.String("rpcpass", "", "password for wallet RPC authentication")
 	testnetFlag = flagset.Bool("testnet", false, "use testnet network")
@@ -52,29 +51,29 @@ var (
 
 // There are two directions that the atomic swap can be performed, as the
 // initiator can be on either chain.  This tool only deals with creating the
-// Bitcoin transactions for these swaps.  A second tool should be used for the
+// Viacoin transactions for these swaps.  A second tool should be used for the
 // transaction on the other chain.  Any chain can be used so long as it supports
 // OP_SHA256 and OP_CHECKLOCKTIMEVERIFY.
 //
-// Example scenerios using bitcoin as the second chain:
+// Example scenerios using viacoin as the second chain:
 //
 // Scenerio 1:
 //   cp1 initiates (dcr)
-//   cp2 participates with cp1 H(S) (btc)
-//   cp1 redeems btc revealing S
+//   cp2 participates with cp1 H(S) (via)
+//   cp1 redeems via revealing S
 //     - must verify H(S) in contract is hash of known secret
 //   cp2 redeems dcr with S
 //
 // Scenerio 2:
-//   cp1 initiates (btc)
+//   cp1 initiates (via)
 //   cp2 participates with cp1 H(S) (dcr)
 //   cp1 redeems dcr revealing S
 //     - must verify H(S) in contract is hash of known secret
-//   cp2 redeems btc with S
+//   cp2 redeems via with S
 
 func init() {
 	flagset.Usage = func() {
-		fmt.Println("Usage: partatomicswap [flags] cmd [cmd args]")
+		fmt.Println("Usage: viaatomicswap [flags] cmd [cmd args]")
 		fmt.Println()
 		fmt.Println("Commands:")
 		fmt.Println("  initiate <participant address> <amount>")
@@ -100,13 +99,13 @@ type offlineCommand interface {
 }
 
 type initiateCmd struct {
-	cp2Addr *partutil.AddressPubKeyHash
-	amount  partutil.Amount
+	cp2Addr *viautil.AddressPubKeyHash
+	amount  viautil.Amount
 }
 
 type participateCmd struct {
-	cp1Addr    *partutil.AddressPubKeyHash
-	amount     partutil.Amount
+	cp1Addr    *viautil.AddressPubKeyHash
+	amount     viautil.Amount
 	secretHash []byte
 }
 
@@ -195,7 +194,7 @@ func run() (err error, showUsage bool) {
 	var cmd command
 	switch args[0] {
 	case "initiate":
-		cp2Addr, err := partutil.DecodeAddress(args[1], chainParams)
+		cp2Addr, err := viautil.DecodeAddress(args[1], chainParams)
 		if err != nil {
 			return fmt.Errorf("failed to decode participant address: %v", err), true
 		}
@@ -203,7 +202,7 @@ func run() (err error, showUsage bool) {
 			return fmt.Errorf("participant address is not "+
 				"intended for use on %v", chainParams.Name), true
 		}
-		cp2AddrP2PKH, ok := cp2Addr.(*partutil.AddressPubKeyHash)
+		cp2AddrP2PKH, ok := cp2Addr.(*viautil.AddressPubKeyHash)
 		if !ok {
 			return errors.New("participant address is not P2PKH"), true
 		}
@@ -212,7 +211,7 @@ func run() (err error, showUsage bool) {
 		if err != nil {
 			return fmt.Errorf("failed to decode amount: %v", err), true
 		}
-		amount, err := partutil.NewAmount(amountF64)
+		amount, err := viautil.NewAmount(amountF64)
 		if err != nil {
 			return err, true
 		}
@@ -220,7 +219,7 @@ func run() (err error, showUsage bool) {
 		cmd = &initiateCmd{cp2Addr: cp2AddrP2PKH, amount: amount}
 
 	case "participate":
-		cp1Addr, err := partutil.DecodeAddress(args[1], chainParams)
+		cp1Addr, err := viautil.DecodeAddress(args[1], chainParams)
 		if err != nil {
 			return fmt.Errorf("failed to decode initiator address: %v", err), true
 		}
@@ -228,7 +227,7 @@ func run() (err error, showUsage bool) {
 			return fmt.Errorf("initiator address is not "+
 				"intended for use on %v", chainParams.Name), true
 		}
-		cp1AddrP2PKH, ok := cp1Addr.(*partutil.AddressPubKeyHash)
+		cp1AddrP2PKH, ok := cp1Addr.(*viautil.AddressPubKeyHash)
 		if !ok {
 			return errors.New("initiator address is not P2PKH"), true
 		}
@@ -237,7 +236,7 @@ func run() (err error, showUsage bool) {
 		if err != nil {
 			return fmt.Errorf("failed to decode amount: %v", err), true
 		}
-		amount, err := partutil.NewAmount(amountF64)
+		amount, err := viautil.NewAmount(amountF64)
 		if err != nil {
 			return err, true
 		}
@@ -379,27 +378,26 @@ func normalizeAddress(addr string, defaultPort string) (hostport string, err err
 func walletPort(params *chaincfg.Params) string {
 	switch params {
 	case &chaincfg.MainNetParams:
-		return "51735"
+		return "5222"
 	case &chaincfg.TestNet3Params:
-		return "51935"
+		return "25222"
 	default:
 		return ""
 	}
 }
 
 // createSig creates and returns the serialized raw signature and compressed
-// pubkey for a transaction input signature.  Due to limitations of the Bitcoin
+// pubkey for a transaction input signature.  Due to limitations of the Viacoin
 // Core RPC API, this requires dumping a private key and signing in the client,
 // rather than letting the wallet sign.
-func createSig(tx *wire.MsgTx, idx int, amount int64, pkScript []byte, addr partutil.Address,
+func createSig(tx *wire.MsgTx, idx int, pkScript []byte, addr viautil.Address,
 	c *rpc.Client) (sig, pubkey []byte, err error) {
 
 	wif, err := c.DumpPrivKey(addr)
 	if err != nil {
 		return nil, nil, err
 	}
-	sigHashes := txscript.NewTxSigHashes(tx)
-	sig, err = txscript.RawTxInWitnessSignature(tx, sigHashes, idx, amount, pkScript, txscript.SigHashAll, wif.PrivKey)
+	sig, err = txscript.RawTxInSignature(tx, idx, pkScript, txscript.SigHashAll, wif.PrivKey)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -408,8 +406,8 @@ func createSig(tx *wire.MsgTx, idx int, amount int64, pkScript []byte, addr part
 
 // fundRawTransaction calls the fundrawtransaction JSON-RPC method.  It is
 // implemented manually as client support is currently missing from the
-// btcd/rpcclient package.
-func fundRawTransaction(c *rpc.Client, tx *wire.MsgTx, feePerKb partutil.Amount) (fundedTx *wire.MsgTx, fee partutil.Amount, err error) {
+// viad/rpcclient package.
+func fundRawTransaction(c *rpc.Client, tx *wire.MsgTx, feePerKb viautil.Amount) (fundedTx *wire.MsgTx, fee viautil.Amount, err error) {
 	var buf bytes.Buffer
 	buf.Grow(tx.SerializeSize())
 	tx.Serialize(&buf)
@@ -448,7 +446,7 @@ func fundRawTransaction(c *rpc.Client, tx *wire.MsgTx, feePerKb partutil.Amount)
 	if err != nil {
 		return nil, 0, err
 	}
-	feeAmount, err := partutil.NewAmount(resp.Fee)
+	feeAmount, err := viautil.NewAmount(resp.Fee)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -459,7 +457,7 @@ func fundRawTransaction(c *rpc.Client, tx *wire.MsgTx, feePerKb partutil.Amount)
 // the minimum mempool relay fee.  It first tries to get the user-set fee in the
 // wallet.  If unset, it attempts to find an estimate using estimatefee 6.  If
 // both of these fail, it falls back to mempool relay fee policy.
-func getFeePerKb(c *rpc.Client) (useFee, relayFee partutil.Amount, err error) {
+func getFeePerKb(c *rpc.Client) (useFee, relayFee viautil.Amount, err error) {
 	var netInfoResp struct {
 		RelayFee float64 `json:"relayfee"`
 	}
@@ -485,11 +483,11 @@ func getFeePerKb(c *rpc.Client) (useFee, relayFee partutil.Amount, err error) {
 		}
 	}
 
-	relayFee, err = partutil.NewAmount(netInfoResp.RelayFee)
+	relayFee, err = viautil.NewAmount(netInfoResp.RelayFee)
 	if err != nil {
 		return 0, 0, err
 	}
-	payTxFee, err := partutil.NewAmount(walletInfoResp.PayTxFee)
+	payTxFee, err := viautil.NewAmount(walletInfoResp.PayTxFee)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -512,7 +510,7 @@ func getFeePerKb(c *rpc.Client) (useFee, relayFee partutil.Amount, err error) {
 
 	err = json.Unmarshal(estimateRawResp, &estimateResp)
 	if err == nil && estimateResp.FeeRate > 0 {
-		useFee, err = partutil.NewAmount(estimateResp.FeeRate)
+		useFee, err = viautil.NewAmount(estimateResp.FeeRate)
 		if relayFee > useFee {
 			useFee = relayFee
 		}
@@ -525,8 +523,8 @@ func getFeePerKb(c *rpc.Client) (useFee, relayFee partutil.Amount, err error) {
 
 // getRawChangeAddress calls the getrawchangeaddress JSON-RPC method.  It is
 // implemented manually as the rpcclient implementation always passes the
-// account parameter which was removed in Bitcoin Core 0.15.
-func getRawChangeAddress(c *rpc.Client) (partutil.Address, error) {
+// account parameter which was removed in Viacoin Core 0.15.
+func getRawChangeAddress(c *rpc.Client) (viautil.Address, error) {
 	params := []json.RawMessage{[]byte(`"legacy"`)}
 	rawResp, err := c.RawRequest("getrawchangeaddress", params)
 	if err != nil {
@@ -537,7 +535,7 @@ func getRawChangeAddress(c *rpc.Client) (partutil.Address, error) {
 	if err != nil {
 		return nil, err
 	}
-	addr, err := partutil.DecodeAddress(addrStr, chainParams)
+	addr, err := viautil.DecodeAddress(addrStr, chainParams)
 	if err != nil {
 		return nil, err
 	}
@@ -579,8 +577,8 @@ func promptPublishTx(c *rpc.Client, tx *wire.MsgTx, name string) error {
 // contractArgs specifies the common parameters used to create the initiator's
 // and participant's contract.
 type contractArgs struct {
-	them       *partutil.AddressPubKeyHash
-	amount     partutil.Amount
+	them       *viautil.AddressPubKeyHash
+	amount     viautil.Amount
 	locktime   int64
 	secretHash []byte
 }
@@ -589,12 +587,12 @@ type contractArgs struct {
 // payment transaction, as well as the transaction to perform a refund.
 type builtContract struct {
 	contract       []byte
-	contractP2SH   partutil.Address
+	contractP2SH   viautil.Address
 	contractTxHash *chainhash.Hash
 	contractTx     *wire.MsgTx
-	contractFee    partutil.Amount
+	contractFee    viautil.Amount
 	refundTx       *wire.MsgTx
-	refundFee      partutil.Amount
+	refundFee      viautil.Amount
 }
 
 // buildContract creates a contract for the parameters specified in args, using
@@ -617,7 +615,7 @@ func buildContract(c *rpc.Client, args *contractArgs) (*builtContract, error) {
 	if err != nil {
 		return nil, err
 	}
-	contractP2SH, err := partutil.NewAddressScriptHash(contract, chainParams)
+	contractP2SH, err := viautil.NewAddressScriptHash(contract, chainParams)
 	if err != nil {
 		return nil, err
 	}
@@ -633,7 +631,6 @@ func buildContract(c *rpc.Client, args *contractArgs) (*builtContract, error) {
 
 	unsignedContract := wire.NewMsgTx(txVersion)
 	unsignedContract.AddTxOut(wire.NewTxOut(int64(args.amount), contractP2SHPkScript))
-
 	unsignedContract, contractFee, err := fundRawTransaction(c, unsignedContract, feePerKb)
 	if err != nil {
 		return nil, fmt.Errorf("fundrawtransaction: %v", err)
@@ -664,10 +661,10 @@ func buildContract(c *rpc.Client, args *contractArgs) (*builtContract, error) {
 	}, nil
 }
 
-func buildRefund(c *rpc.Client, contract []byte, contractTx *wire.MsgTx, feePerKb, minFeePerKb partutil.Amount) (
-	refundTx *wire.MsgTx, refundFee partutil.Amount, err error) {
+func buildRefund(c *rpc.Client, contract []byte, contractTx *wire.MsgTx, feePerKb, minFeePerKb viautil.Amount) (
+	refundTx *wire.MsgTx, refundFee viautil.Amount, err error) {
 
-	contractP2SH, err := partutil.NewAddressScriptHash(contract, chainParams)
+	contractP2SH, err := viautil.NewAddressScriptHash(contract, chainParams)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -676,13 +673,11 @@ func buildRefund(c *rpc.Client, contract []byte, contractTx *wire.MsgTx, feePerK
 		return nil, 0, err
 	}
 
-	inputAmount := int64(0)
 	contractTxHash := contractTx.TxHash()
 	contractOutPoint := wire.OutPoint{Hash: contractTxHash, Index: ^uint32(0)}
 	for i, o := range contractTx.TxOut {
 		if bytes.Equal(o.PkScript, contractP2SHPkScript) {
 			contractOutPoint.Index = uint32(i)
-			inputAmount = o.Value
 			break
 		}
 	}
@@ -701,54 +696,51 @@ func buildRefund(c *rpc.Client, contract []byte, contractTx *wire.MsgTx, feePerK
 
 	pushes, err := txscript.ExtractAtomicSwapDataPushes(0, contract)
 	if err != nil {
-		// expected to only be called with good input
+		//expected only to be called with good input
 		panic(err)
 	}
 
-	refundAddr, err := partutil.NewAddressPubKeyHash(pushes.RefundHash160[:], chainParams)
+	refundAddr, err := viautil.NewAddressPubKeyHash(pushes.RefundHash160[:], chainParams)
 	if err != nil {
 		return nil, 0, err
 	}
 
 	refundTx = wire.NewMsgTx(txVersion)
 	refundTx.LockTime = uint32(pushes.LockTime)
-	txIn := wire.NewTxIn(&contractOutPoint, nil, nil)
-	txIn.Sequence = 0
-	refundTx.AddTxIn(txIn)
 	refundTx.AddTxOut(wire.NewTxOut(0, refundOutScript)) // amount set below
-
-	refundSize := estimateRefundSerializeSize(contract, refundTx)
+	refundSize := estimateRefundSerializeSize(contract, refundTx.TxOut)
 	refundFee = txrules.FeeForSerializeSize(feePerKb, refundSize)
 	refundTx.TxOut[0].Value = contractTx.TxOut[contractOutPoint.Index].Value - int64(refundFee)
 	if txrules.IsDustOutput(refundTx.TxOut[0], minFeePerKb) {
-		return nil, 0, fmt.Errorf("refund output value of %v is dust", partutil.Amount(refundTx.TxOut[0].Value))
+		return nil, 0, fmt.Errorf("refund output value of %v is dust", viautil.Amount(refundTx.TxOut[0].Value))
 	}
-	refundSig, refundPubKey, err := createSig(refundTx, 0, inputAmount, contract, refundAddr, c)
+
+	txIn := wire.NewTxIn(&contractOutPoint, nil, nil)
+	txIn.Sequence = 0
+	refundTx.AddTxIn(txIn)
+
+	refundSig, refundPubKey, err := createSig(refundTx, 0, contract, refundAddr, c)
 	if err != nil {
 		return nil, 0, err
 	}
-	b0 := []byte{byte(txscript.OP_0)}
-	refundTx.TxIn[0].Witness = wire.TxWitness{refundSig, refundPubKey, b0, contract}
-	/*
-		refundSigScript, err := refundP2SHContract(contract, refundSig, refundPubKey)
-		if err != nil {
-			return nil, 0, err
-		}
-		refundTx.TxIn[0].SignatureScript = refundSigScript
+	refundSigScript, err := refundP2SHContract(contract, refundSig, refundPubKey)
+	if err != nil {
+		return nil, 0, err
+	}
+	refundTx.TxIn[0].SignatureScript = refundSigScript
 
-		if verify {
-			e, err := txscript.NewEngine(contractTx.TxOut[contractOutPoint.Index].PkScript,
-				refundTx, 0, txscript.StandardVerifyFlags, txscript.NewSigCache(10),
-				txscript.NewTxSigHashes(refundTx), contractTx.TxOut[contractOutPoint.Index].Value)
-			if err != nil {
-				panic(err)
-			}
-			err = e.Execute()
-			if err != nil {
-				panic(err)
-			}
+	if verify {
+		e, err := txscript.NewEngine(contractTx.TxOut[contractOutPoint.Index].PkScript,
+			refundTx, 0, txscript.StandardVerifyFlags, txscript.NewSigCache(10),
+			txscript.NewTxSigHashes(refundTx), contractTx.TxOut[contractOutPoint.Index].Value)
+		if err != nil {
+			panic(err)
 		}
-	*/
+		err = e.Execute()
+		if err != nil {
+			panic(err)
+		}
+	}
 
 	return refundTx, refundFee, nil
 }
@@ -758,7 +750,7 @@ func sha256Hash(x []byte) []byte {
 	return h[:]
 }
 
-func calcFeePerKb(absoluteFee partutil.Amount, serializeSize int) float64 {
+func calcFeePerKb(absoluteFee viautil.Amount, serializeSize int) float64 {
 	return float64(absoluteFee) / float64(serializeSize) / 1e5
 }
 
@@ -785,14 +777,13 @@ func (cmd *initiateCmd) runCommand(c *rpc.Client) error {
 	}
 
 	refundTxHash := b.refundTx.TxHash()
-
-	contractFeePerKb := calcFeePerKb(b.contractFee, getVirtualSize(b.contractTx))
-	refundFeePerKb := calcFeePerKb(b.refundFee, getVirtualSize(b.refundTx))
+	contractFeePerKb := calcFeePerKb(b.contractFee, b.contractTx.SerializeSize())
+	refundFeePerKb := calcFeePerKb(b.refundFee, b.refundTx.SerializeSize())
 
 	fmt.Printf("Secret:      %x\n", secret)
 	fmt.Printf("Secret hash: %x\n\n", secretHash)
-	fmt.Printf("Contract fee: %v (%0.8f PART/kB)\n", b.contractFee, contractFeePerKb)
-	fmt.Printf("Refund fee:   %v (%0.8f PART/kB)\n\n", b.refundFee, refundFeePerKb)
+	fmt.Printf("Contract fee: %v (%0.8f VIA/kB)\n", b.contractFee, contractFeePerKb)
+	fmt.Printf("Refund fee:   %v (%0.8f VIA/kB)\n\n", b.refundFee, refundFeePerKb)
 	fmt.Printf("Contract (%v):\n", b.contractP2SH)
 	fmt.Printf("%x\n\n", b.contract)
 	var contractBuf bytes.Buffer
@@ -825,12 +816,11 @@ func (cmd *participateCmd) runCommand(c *rpc.Client) error {
 	}
 
 	refundTxHash := b.refundTx.TxHash()
+	contractFeePerKb := calcFeePerKb(b.contractFee, b.contractTx.SerializeSize())
+	refundFeePerKb := calcFeePerKb(b.refundFee, b.refundTx.SerializeSize())
 
-	contractFeePerKb := calcFeePerKb(b.contractFee, getVirtualSize(b.contractTx))
-	refundFeePerKb := calcFeePerKb(b.refundFee, getVirtualSize(b.refundTx))
-
-	fmt.Printf("Contract fee: %v (%0.8f PART/kB)\n", b.contractFee, contractFeePerKb)
-	fmt.Printf("Refund fee:   %v (%0.8f PART/kB)\n\n", b.refundFee, refundFeePerKb)
+	fmt.Printf("Contract fee: %v (%0.8f VIA/kB)\n", b.contractFee, contractFeePerKb)
+	fmt.Printf("Refund fee:   %v (%0.8f VIA/kB)\n\n", b.refundFee, refundFeePerKb)
 	fmt.Printf("Contract (%v):\n", b.contractP2SH)
 	fmt.Printf("%x\n\n", b.contract)
 	var contractBuf bytes.Buffer
@@ -855,17 +845,17 @@ func (cmd *redeemCmd) runCommand(c *rpc.Client) error {
 	if pushes == nil {
 		return errors.New("contract is not an atomic swap script recognized by this tool")
 	}
-	recipientAddr, err := partutil.NewAddressPubKeyHash(pushes.RecipientHash160[:],
+	recipientAddr, err := viautil.NewAddressPubKeyHash(pushes.RecipientHash160[:],
 		chainParams)
 	if err != nil {
 		return err
 	}
-	contractHash := partutil.Hash160(cmd.contract)
+	contractHash := viautil.Hash160(cmd.contract)
 	contractOut := -1
 	for i, out := range cmd.contractTx.TxOut {
 		sc, addrs, _, _ := txscript.ExtractPkScriptAddrs(out.PkScript, chainParams)
 		if sc == txscript.ScriptHashTy &&
-			bytes.Equal(addrs[0].(*partutil.AddressScriptHash).Hash160()[:], contractHash) {
+			bytes.Equal(addrs[0].(*viautil.AddressScriptHash).Hash160()[:], contractHash) {
 			contractOut = i
 			break
 		}
@@ -898,50 +888,46 @@ func (cmd *redeemCmd) runCommand(c *rpc.Client) error {
 	redeemTx.LockTime = uint32(pushes.LockTime)
 	redeemTx.AddTxIn(wire.NewTxIn(&contractOutPoint, nil, nil))
 	redeemTx.AddTxOut(wire.NewTxOut(0, outScript)) // amount set below
-	redeemSize := estimateRedeemSerializeSize(cmd.contract, redeemTx)
+	redeemSize := estimateRedeemSerializeSize(cmd.contract, redeemTx.TxOut)
 	fee := txrules.FeeForSerializeSize(feePerKb, redeemSize)
 	redeemTx.TxOut[0].Value = cmd.contractTx.TxOut[contractOut].Value - int64(fee)
 	if txrules.IsDustOutput(redeemTx.TxOut[0], minFeePerKb) {
-		return fmt.Errorf("redeem output value of %v is dust", partutil.Amount(redeemTx.TxOut[0].Value))
+		return fmt.Errorf("redeem output value of %v is dust", viautil.Amount(redeemTx.TxOut[0].Value))
 	}
 
-	redeemSig, redeemPubKey, err := createSig(redeemTx, 0, cmd.contractTx.TxOut[contractOut].Value, cmd.contract, recipientAddr, c)
+	redeemSig, redeemPubKey, err := createSig(redeemTx, 0, cmd.contract, recipientAddr, c)
 	if err != nil {
 		return err
 	}
-	/*
-		redeemSigScript, err := redeemP2SHContract(cmd.contract, redeemSig, redeemPubKey, cmd.secret)
-		if err != nil {
-			return err
-		}
-		redeemTx.TxIn[0].SignatureScript = redeemSigScript
-	*/
-	b1 := []byte{byte(txscript.OP_1)}
-	redeemTx.TxIn[0].Witness = wire.TxWitness{redeemSig, redeemPubKey, cmd.secret, b1, cmd.contract}
+	redeemSigScript, err := redeemP2SHContract(cmd.contract, redeemSig, redeemPubKey, cmd.secret)
+	if err != nil {
+		return err
+	}
+	redeemTx.TxIn[0].SignatureScript = redeemSigScript
 
 	redeemTxHash := redeemTx.TxHash()
-	redeemFeePerKb := calcFeePerKb(fee, getVirtualSize(redeemTx))
+	redeemFeePerKb := calcFeePerKb(fee, redeemTx.SerializeSize())
 
 	var buf bytes.Buffer
 	buf.Grow(redeemTx.SerializeSize())
 	redeemTx.Serialize(&buf)
-	fmt.Printf("Redeem fee: %v (%0.8f PART/kB)\n\n", fee, redeemFeePerKb)
+	fmt.Printf("Redeem fee: %v (%0.8f VIA/kB)\n\n", fee, redeemFeePerKb)
 	fmt.Printf("Redeem transaction (%v):\n", &redeemTxHash)
 	fmt.Printf("%x\n\n", buf.Bytes())
-	/*
-		if verify {
-			e, err := txscript.NewEngine(cmd.contractTx.TxOut[contractOutPoint.Index].PkScript,
-				redeemTx, 0, txscript.StandardVerifyFlags, txscript.NewSigCache(10),
-				txscript.NewTxSigHashes(redeemTx), cmd.contractTx.TxOut[contractOut].Value)
-			if err != nil {
-				panic(err)
-			}
-			err = e.Execute()
-			if err != nil {
-				panic(err)
-			}
+
+	if verify {
+		e, err := txscript.NewEngine(cmd.contractTx.TxOut[contractOutPoint.Index].PkScript,
+			redeemTx, 0, txscript.StandardVerifyFlags, txscript.NewSigCache(10),
+			txscript.NewTxSigHashes(redeemTx), cmd.contractTx.TxOut[contractOut].Value)
+		if err != nil {
+			panic(err)
 		}
-	*/
+		err = e.Execute()
+		if err != nil {
+			panic(err)
+		}
+	}
+
 	return promptPublishTx(c, redeemTx, "redeem")
 }
 
@@ -968,9 +954,9 @@ func (cmd *refundCmd) runCommand(c *rpc.Client) error {
 	buf.Grow(refundTx.SerializeSize())
 	refundTx.Serialize(&buf)
 
-	refundFeePerKb := calcFeePerKb(refundFee, getVirtualSize(refundTx))
+	refundFeePerKb := calcFeePerKb(refundFee, refundTx.SerializeSize())
 
-	fmt.Printf("Refund fee: %v (%0.8f PART/kB)\n\n", refundFee, refundFeePerKb)
+	fmt.Printf("Refund fee: %v (%0.8f VIA/kB)\n\n", refundFee, refundFeePerKb)
 	fmt.Printf("Refund transaction (%v):\n", &refundTxHash)
 	fmt.Printf("%x\n\n", buf.Bytes())
 
@@ -998,12 +984,6 @@ func (cmd *extractSecretCmd) runOfflineCommand() error {
 				return nil
 			}
 		}
-		for _, item := range in.Witness {
-			if bytes.Equal(sha256Hash(item), cmd.secretHash) {
-				fmt.Printf("Secret: %x\n", item)
-				return nil
-			}
-		}
 	}
 	return errors.New("transaction does not contain the secret")
 }
@@ -1013,14 +993,14 @@ func (cmd *auditContractCmd) runCommand(c *rpc.Client) error {
 }
 
 func (cmd *auditContractCmd) runOfflineCommand() error {
-	contractHash160 := partutil.Hash160(cmd.contract)
+	contractHash160 := viautil.Hash160(cmd.contract)
 	contractOut := -1
 	for i, out := range cmd.contractTx.TxOut {
 		sc, addrs, _, err := txscript.ExtractPkScriptAddrs(out.PkScript, chainParams)
 		if err != nil || sc != txscript.ScriptHashTy {
 			continue
 		}
-		if bytes.Equal(addrs[0].(*partutil.AddressScriptHash).Hash160()[:], contractHash160) {
+		if bytes.Equal(addrs[0].(*viautil.AddressScriptHash).Hash160()[:], contractHash160) {
 			contractOut = i
 			break
 		}
@@ -1040,23 +1020,23 @@ func (cmd *auditContractCmd) runOfflineCommand() error {
 		return fmt.Errorf("contract specifies strange secret size %v", pushes.SecretSize)
 	}
 
-	contractAddr, err := partutil.NewAddressScriptHash(cmd.contract, chainParams)
+	contractAddr, err := viautil.NewAddressScriptHash(cmd.contract, chainParams)
 	if err != nil {
 		return err
 	}
-	recipientAddr, err := partutil.NewAddressPubKeyHash(pushes.RecipientHash160[:],
+	recipientAddr, err := viautil.NewAddressPubKeyHash(pushes.RecipientHash160[:],
 		chainParams)
 	if err != nil {
 		return err
 	}
-	refundAddr, err := partutil.NewAddressPubKeyHash(pushes.RefundHash160[:],
+	refundAddr, err := viautil.NewAddressPubKeyHash(pushes.RefundHash160[:],
 		chainParams)
 	if err != nil {
 		return err
 	}
 
 	fmt.Printf("Contract address:        %v\n", contractAddr)
-	fmt.Printf("Contract value:          %v\n", partutil.Amount(cmd.contractTx.TxOut[contractOut].Value))
+	fmt.Printf("Contract value:          %v\n", viautil.Amount(cmd.contractTx.TxOut[contractOut].Value))
 	fmt.Printf("Recipient address:       %v\n", recipientAddr)
 	fmt.Printf("Author's refund address: %v\n\n", refundAddr)
 
@@ -1065,8 +1045,7 @@ func (cmd *auditContractCmd) runOfflineCommand() error {
 	if pushes.LockTime >= int64(txscript.LockTimeThreshold) {
 		t := time.Unix(pushes.LockTime, 0)
 		fmt.Printf("Locktime: %v\n", t.UTC())
-		//reachedAt := time.Until(t).Truncate(time.Second) // type time.Duration has no field or method Truncate
-		reachedAt := time.Until(t)
+		reachedAt := time.Until(t).Truncate(time.Second)
 		if reachedAt > 0 {
 			fmt.Printf("Locktime reached in %v\n", reachedAt)
 		} else {

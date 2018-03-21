@@ -3,15 +3,33 @@
 
 [[projects]]
   branch = "master"
+  name = "github.com/DesWurstes/btcd"
+  packages = ["txscript"]
+  revision = "04fe8cbcd5f0ced5eaaa5bf88aee7f123750ac55"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/aead/skein"
+  packages = [".","threefish"]
+  revision = "9365ae6e95d294dc113a0b308852f97c916db233"
+
+[[projects]]
+  branch = "master"
   name = "github.com/agl/ed25519"
   packages = [".","edwards25519"]
   revision = "5312a61534124124185d41f09206b9fef1d88403"
 
 [[projects]]
   branch = "master"
+  name = "github.com/bitgoin/lyra2rev2"
+  packages = ["sha3"]
+  revision = "bae9ad2043bb55facb14c4918e909f88a7d3ed84"
+
+[[projects]]
+  branch = "master"
   name = "github.com/btcsuite/btcd"
   packages = ["btcec","btcjson","chaincfg","chaincfg/chainhash","rpcclient","txscript","wire"]
-  revision = "4803a8291c92a1d2d41041b942a9a9e37deab065"
+  revision = "2be2f12b358dc57d70b8f501b00be450192efbc3"
 
 [[projects]]
   branch = "master"
@@ -50,6 +68,11 @@
   revision = "31079b6807923eb23992c421b114992b95131b55"
 
 [[projects]]
+  name = "github.com/cpacia/bchutil"
+  packages = ["."]
+  revision = "223045ec4d9ef2fcc7c6ed62f9a8ed80ac9bdf58"
+
+[[projects]]
   branch = "master"
   name = "github.com/dchest/blake256"
   packages = ["."]
@@ -59,31 +82,31 @@
   branch = "master"
   name = "github.com/decred/base58"
   packages = ["."]
-  revision = "b3520e187fa8ebe65eb74245408cf4b83e6a65d3"
+  revision = "229e657bc9be5d592855a910428907f851950ed5"
 
 [[projects]]
   branch = "master"
   name = "github.com/decred/dcrd"
   packages = ["blockchain","blockchain/internal/dbnamespace","blockchain/internal/progresslog","blockchain/stake","blockchain/stake/internal/dbnamespace","blockchain/stake/internal/ticketdb","blockchain/stake/internal/tickettreap","chaincfg","chaincfg/chainec","chaincfg/chainhash","database","dcrec/edwards","dcrec/secp256k1","dcrec/secp256k1/schnorr","dcrutil","txscript","wire"]
-  revision = "d27429061b49d400d06505911a1379b8a8246671"
+  revision = "60c7bc0e10b438ed9e52af039988a8c8479475fb"
 
 [[projects]]
   branch = "master"
   name = "github.com/decred/dcrwallet"
   packages = ["internal/helpers","rpc/walletrpc","wallet/txrules"]
-  revision = "2df4002bce8c540907c9a3e2980fc3e5deeba8f6"
+  revision = "1dc40f82683013a2111dd6bcfbd22d3dd219bc34"
 
 [[projects]]
   branch = "master"
   name = "github.com/golang/protobuf"
   packages = ["proto","ptypes","ptypes/any","ptypes/duration","ptypes/timestamp"]
-  revision = "ae59567b9aab61b50b2590679a62c3c044030b61"
+  revision = "bbd03ef6da3a115852eaf24c8a1c46aeb39aa175"
 
 [[projects]]
   branch = "ltcatomicswap"
   name = "github.com/ltcsuite/ltcd"
   packages = ["btcec","btcjson","chaincfg","chaincfg/chainhash","rpcclient","txscript","wire"]
-  revision = "73924b0a232dfbdc943daf7370e5f46bcf5904a6"
+  revision = "941d1c922dfd3d5bedd889dcbcf818db37aab0e2"
   source = "github.com/jrick/btcd"
 
 [[projects]]
@@ -104,7 +127,7 @@
   branch = "master"
   name = "github.com/particl/partsuite_partd"
   packages = ["btcec","btcjson","chaincfg","chaincfg/chainhash","rpcclient","txscript","wire"]
-  revision = "19ee3c9d208d87a11cad892163b54106af847921"
+  revision = "ae651ccc82938a86c4ea059fc56c305c1e074240"
 
 [[projects]]
   branch = "master"
@@ -122,7 +145,7 @@
   branch = "master"
   name = "github.com/vertcoin/vtcd"
   packages = ["btcec","btcjson","chaincfg","chaincfg/chainhash","rpcclient","txscript","wire"]
-  revision = "15387ac36fe71840d251e71f4c81110c793e3b9e"
+  revision = "e703c22063ac06bc1a776d60c9f5b60b6bed17c8"
 
 [[projects]]
   branch = "master"
@@ -138,43 +161,103 @@
 
 [[projects]]
   branch = "master"
+  name = "github.com/viacoin/viad"
+  packages = ["btcec","btcjson","chaincfg","chaincfg/chainhash","rpcclient","txscript","wire"]
+  revision = "506298a163934cfebda00bab6e372e73926b4e5b"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/viacoin/viautil"
+  packages = [".","base58","bech32"]
+  revision = "ed9ec48290bc085ae179946a14675bf2249fc718"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/viacoin/viawallet"
+  packages = ["wallet/txrules"]
+  revision = "a775b77c2dc41cc00d3156bc7b57e2ac9776a232"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/wakiyamap/lyra2rev2"
+  packages = ["."]
+  revision = "bae9ad2043bb55facb14c4918e909f88a7d3ed84"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/wakiyamap/monad"
+  packages = ["btcec","btcjson","chaincfg","chaincfg/chainhash","rpcclient","txscript","wire"]
+  revision = "8139a2a986a0a52dc149e53ec3167a1ce155d3c0"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/wakiyamap/monautil"
+  packages = [".","base58","bech32"]
+  revision = "f5bfcf53b9ae24b8146086c9c11790a5f0616d9d"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/wakiyamap/monawallet"
+  packages = ["wallet/txrules"]
+  revision = "b4defd9b37d7e1c6d1e0a9ff278700dfc8050d9d"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/zcoinofficial/xzcd"
+  packages = ["btcec","btcjson","chaincfg","chaincfg/chainhash","rpcclient","txscript","wire"]
+  revision = "ae307d1ae9070c5434a6a203992db0ad35712e96"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/zcoinofficial/xzcutil"
+  packages = [".","base58","bech32"]
+  revision = "ca7c84e1d45c50576b352b6dd22f0547b0b56c30"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/zcoinofficial/xzcwallet"
+  packages = ["wallet/txrules"]
+  revision = "fe84e6e188b8a4d350109646c084d0fb8c147fae"
+
+[[projects]]
+  branch = "master"
   name = "golang.org/x/crypto"
   packages = ["pbkdf2","ripemd160","scrypt","ssh/terminal"]
-  revision = "7d9177d70076375b9a59c8fde23d52d9c4a7ecd5"
+  revision = "91a49db82a88618983a78a06c1cbd4e00ab749ab"
 
 [[projects]]
   branch = "master"
   name = "golang.org/x/net"
   packages = ["context","http2","http2/hpack","idna","internal/timeseries","lex/httplex","trace"]
-  revision = "8351a756f30f1297fe94bbf4b767ec589c6ea6d0"
+  revision = "cbe0f9307d0156177f9dd5dc85da1a31abc5f2fb"
 
 [[projects]]
   branch = "master"
   name = "golang.org/x/sys"
   packages = ["unix","windows"]
-  revision = "b6e1ae21643682ce023deb8d152024597b0e9bb4"
+  revision = "f6cff0780e542efa0c8e864dc8fa522808f6a598"
 
 [[projects]]
-  branch = "master"
   name = "golang.org/x/text"
   packages = ["collate","collate/build","internal/colltab","internal/gen","internal/tag","internal/triegen","internal/ucd","language","secure/bidirule","transform","unicode/bidi","unicode/cldr","unicode/norm","unicode/rangetable"]
-  revision = "1cbadb444a806fd9430d14ad08967ed91da4fa0a"
+  revision = "f21a4dfb5e38f5895301dc265a8def02365cc3d0"
+  version = "v0.3.0"
 
 [[projects]]
   branch = "master"
   name = "google.golang.org/genproto"
   packages = ["googleapis/rpc/status"]
-  revision = "1e559d0a00eef8a9a43151db4665280bd8dd5886"
+  revision = "2d9486acae19cf9bd0c093d7dc236a323726a9e4"
 
 [[projects]]
   name = "google.golang.org/grpc"
-  packages = [".","codes","connectivity","credentials","grpclb/grpc_lb_v1/messages","grpclog","internal","keepalive","metadata","naming","peer","stats","status","tap","transport"]
-  revision = "f92cdcd7dcdc69e81b2d7b338479a19a8723cfa3"
-  version = "v1.6.0"
+  packages = [".","balancer","balancer/base","balancer/roundrobin","codes","connectivity","credentials","encoding","encoding/proto","grpclb/grpc_lb_v1/messages","grpclog","internal","keepalive","metadata","naming","peer","resolver","resolver/dns","resolver/passthrough","stats","status","tap","transport"]
+  revision = "8e4536a86ab602859c20df5ebfd0bd4228d08655"
+  version = "v1.10.0"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "cf9373df2e658d00b7f8ca09ac087f26f56ee593ab786b80d8166efd3720f171"
+  inputs-digest = "bd710a278fa414ae0895a72001f20209f5890e4bedfd3311c03db28a98da0430"
   solver-name = "gps-cdcl"
   solver-version = 1

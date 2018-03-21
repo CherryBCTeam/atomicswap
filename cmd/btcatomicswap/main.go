@@ -8,6 +8,7 @@ import (
 	"bufio"
 	"bytes"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -51,7 +52,7 @@ var (
 // initiator can be on either chain.  This tool only deals with creating the
 // Bitcoin transactions for these swaps.  A second tool should be used for the
 // transaction on the other chain.  Any chain can be used so long as it supports
-// OP_RIPEMD160 and OP_CHECKLOCKTIMEVERIFY.
+// OP_SHA256 and OP_CHECKLOCKTIMEVERIFY.
 //
 // Example scenerios using bitcoin as the second chain:
 //
@@ -243,7 +244,7 @@ func run() (err error, showUsage bool) {
 		if err != nil {
 			return errors.New("secret hash must be hex encoded"), true
 		}
-		if len(secretHash) != ripemd160.Size {
+		if len(secretHash) != sha256.Size {
 			return errors.New("secret hash has wrong size"), true
 		}
 
@@ -305,7 +306,7 @@ func run() (err error, showUsage bool) {
 		if err != nil {
 			return errors.New("secret hash must be hex encoded"), true
 		}
-		if len(secretHash) != ripemd160.Size {
+		if len(secretHash) != sha256.Size {
 			return errors.New("secret hash has wrong size"), true
 		}
 
@@ -456,32 +457,59 @@ func fundRawTransaction(c *rpc.Client, tx *wire.MsgTx, feePerKb btcutil.Amount) 
 // wallet.  If unset, it attempts to find an estimate using estimatefee 6.  If
 // both of these fail, it falls back to mempool relay fee policy.
 func getFeePerKb(c *rpc.Client) (useFee, relayFee btcutil.Amount, err error) {
-	info, err := c.GetInfo()
-	if err != nil {
-		return 0, 0, fmt.Errorf("getinfo: %v", err)
+	var netInfoResp struct {
+		RelayFee float64 `json:"relayfee"`
 	}
-	relayFee, err = btcutil.NewAmount(info.RelayFee)
+	var walletInfoResp struct {
+		PayTxFee float64 `json:"paytxfee"`
+	}
+	var estimateResp struct {
+		FeeRate float64 `json:"feerate"`
+	}
+
+	netInfoRawResp, err := c.RawRequest("getnetworkinfo", nil)
+	if err == nil {
+		err = json.Unmarshal(netInfoRawResp, &netInfoResp)
+		if err != nil {
+			return 0, 0, err
+		}
+	}
+	walletInfoRawResp, err := c.RawRequest("walletinfo", nil)
+	if err == nil {
+		err = json.Unmarshal(walletInfoRawResp, &walletInfoResp)
+		if err != nil {
+			return 0, 0, err
+		}
+	}
+
+	relayFee, err = btcutil.NewAmount(netInfoResp.RelayFee)
 	if err != nil {
 		return 0, 0, err
 	}
-	maxFee := info.PaytxFee
-	if info.PaytxFee != 0 {
-		if info.RelayFee > maxFee {
-			maxFee = info.RelayFee
+	payTxFee, err := btcutil.NewAmount(walletInfoResp.PayTxFee)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	// Use user-set wallet fee when set and not lower than the network relay
+	// fee.
+	if payTxFee != 0 {
+		maxFee := payTxFee
+		if relayFee > maxFee {
+			maxFee = relayFee
 		}
-		useFee, err = btcutil.NewAmount(maxFee)
-		return useFee, relayFee, err
+		return maxFee, relayFee, nil
 	}
 
 	params := []json.RawMessage{[]byte("6")}
-	estimateRawResp, err := c.RawRequest("estimatefee", params)
+	estimateRawResp, err := c.RawRequest("estimatesmartfee", params)
 	if err != nil {
 		return 0, 0, err
 	}
-	var estimateResp float64 = -1
+
 	err = json.Unmarshal(estimateRawResp, &estimateResp)
-	if err == nil && estimateResp != -1 {
-		useFee, err = btcutil.NewAmount(estimateResp)
+	if err == nil && estimateResp.FeeRate > 0 {
+		useFee, err = btcutil.NewAmount(estimateResp.FeeRate)
 		if relayFee > useFee {
 			useFee = relayFee
 		}
@@ -489,15 +517,15 @@ func getFeePerKb(c *rpc.Client) (useFee, relayFee btcutil.Amount, err error) {
 	}
 
 	fmt.Println("warning: falling back to mempool relay fee policy")
-	useFee, err = btcutil.NewAmount(info.RelayFee)
-	return useFee, relayFee, err
+	return relayFee, relayFee, nil
 }
 
 // getRawChangeAddress calls the getrawchangeaddress JSON-RPC method.  It is
 // implemented manually as the rpcclient implementation always passes the
 // account parameter which was removed in Bitcoin Core 0.15.
 func getRawChangeAddress(c *rpc.Client) (btcutil.Address, error) {
-	rawResp, err := c.RawRequest("getrawchangeaddress", nil)
+	params := []json.RawMessage{[]byte(`"legacy"`)}
+	rawResp, err := c.RawRequest("getrawchangeaddress", params)
 	if err != nil {
 		return nil, err
 	}
@@ -665,7 +693,7 @@ func buildRefund(c *rpc.Client, contract []byte, contractTx *wire.MsgTx, feePerK
 		return nil, 0, err
 	}
 
-	pushes, err := txscript.ExtractAtomicSwapDataPushes(contract)
+	pushes, err := txscript.ExtractAtomicSwapDataPushes(0, contract)
 	if err != nil {
 		// expected to only be called with good input
 		panic(err)
@@ -716,10 +744,9 @@ func buildRefund(c *rpc.Client, contract []byte, contractTx *wire.MsgTx, feePerK
 	return refundTx, refundFee, nil
 }
 
-func ripemd160Hash(x []byte) []byte {
-	h := ripemd160.New()
-	h.Write(x)
-	return h.Sum(nil)
+func sha256Hash(x []byte) []byte {
+	h := sha256.Sum256(x)
+	return h[:]
 }
 
 func calcFeePerKb(absoluteFee btcutil.Amount, serializeSize int) float64 {
@@ -732,7 +759,7 @@ func (cmd *initiateCmd) runCommand(c *rpc.Client) error {
 	if err != nil {
 		return err
 	}
-	secretHash := ripemd160Hash(secret[:])
+	secretHash := sha256Hash(secret[:])
 
 	// locktime after 500,000,000 (Tue Nov  5 00:53:20 1985 UTC) is interpreted
 	// as a unix time rather than a block height.
@@ -810,7 +837,7 @@ func (cmd *participateCmd) runCommand(c *rpc.Client) error {
 }
 
 func (cmd *redeemCmd) runCommand(c *rpc.Client) error {
-	pushes, err := txscript.ExtractAtomicSwapDataPushes(cmd.contract)
+	pushes, err := txscript.ExtractAtomicSwapDataPushes(0, cmd.contract)
 	if err != nil {
 		return err
 	}
@@ -904,7 +931,7 @@ func (cmd *redeemCmd) runCommand(c *rpc.Client) error {
 }
 
 func (cmd *refundCmd) runCommand(c *rpc.Client) error {
-	pushes, err := txscript.ExtractAtomicSwapDataPushes(cmd.contract)
+	pushes, err := txscript.ExtractAtomicSwapDataPushes(0, cmd.contract)
 	if err != nil {
 		return err
 	}
@@ -951,7 +978,7 @@ func (cmd *extractSecretCmd) runOfflineCommand() error {
 			return err
 		}
 		for _, push := range pushes {
-			if bytes.Equal(ripemd160Hash(push), cmd.secretHash) {
+			if bytes.Equal(sha256Hash(push), cmd.secretHash) {
 				fmt.Printf("Secret: %x\n", push)
 				return nil
 			}
@@ -981,12 +1008,15 @@ func (cmd *auditContractCmd) runOfflineCommand() error {
 		return errors.New("transaction does not contain the contract output")
 	}
 
-	pushes, err := txscript.ExtractAtomicSwapDataPushes(cmd.contract)
+	pushes, err := txscript.ExtractAtomicSwapDataPushes(0, cmd.contract)
 	if err != nil {
 		return err
 	}
 	if pushes == nil {
 		return errors.New("contract is not an atomic swap script recognized by this tool")
+	}
+	if pushes.SecretSize != secretSize {
+		return fmt.Errorf("contract specifies strange secret size %v", pushes.SecretSize)
 	}
 
 	contractAddr, err := btcutil.NewAddressScriptHash(cmd.contract, chainParams)
@@ -1043,10 +1073,15 @@ func atomicSwapContract(pkhMe, pkhThem *[ripemd160.Size]byte, locktime int64, se
 
 	b.AddOp(txscript.OP_IF) // Normal redeem path
 	{
-		// Require initiator's secret to be known to redeem the output.  A
-		// ripemd160 hash is used here as it is the only shared hash opcode
-		// between decred and bitcoin.
-		b.AddOp(txscript.OP_RIPEMD160)
+		// Require initiator's secret to be a known length that the redeeming
+		// party can audit.  This is used to prevent fraud attacks between two
+		// currencies that have different maximum data sizes.
+		b.AddOp(txscript.OP_SIZE)
+		b.AddInt64(secretSize)
+		b.AddOp(txscript.OP_EQUALVERIFY)
+
+		// Require initiator's secret to be known to redeem the output.
+		b.AddOp(txscript.OP_SHA256)
 		b.AddData(secretHash)
 		b.AddOp(txscript.OP_EQUALVERIFY)
 
